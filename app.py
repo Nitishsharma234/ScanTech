@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 from ultralytics import YOLO
 from PIL import Image, ImageEnhance
 import numpy as np
@@ -62,6 +63,29 @@ section[data-testid="stSidebar"] .stMarkdown h3 {
     font-family:'Space Grotesk',sans-serif; color:#3B82F6;
     font-size:0.72rem; letter-spacing:0.15em; text-transform:uppercase; font-weight:600;
 }
+
+/* Sidebar open button — shown only when sidebar is collapsed */
+#sidebar-open-btn {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 0;
+    transform: translateY(-50%);
+    z-index: 99999;
+    background: #1D4ED8;
+    color: #F0F6FF;
+    border: none;
+    border-radius: 0 8px 8px 0;
+    width: 28px;
+    height: 56px;
+    cursor: pointer;
+    font-size: 1rem;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 2px 0 12px rgba(0,0,0,0.4);
+    transition: background 0.2s, width 0.2s;
+}
+#sidebar-open-btn:hover { background: #2563EB; width: 34px; }
 
 [data-testid="stFileUploader"] {
     background:#0F1923; border:2px dashed #1E3A5F;
@@ -145,6 +169,99 @@ section[data-testid="stSidebar"] .stMarkdown h3 {
 .divider { border:none; border-top:1px solid #1E3A5F; margin:1.5rem 0; }
 </style>
 """, unsafe_allow_html=True)
+
+# ─── Sidebar Open Arrow (injected into parent page via components.html) ────────
+components.html("""
+<script>
+(function() {
+    var doc = window.parent.document;
+
+    // Inject the button into the parent page once
+    if (!doc.getElementById('sidebar-open-btn')) {
+        var style = doc.createElement('style');
+        style.textContent = `
+            #sidebar-open-btn {
+                display: none;
+                position: fixed;
+                top: 50%;
+                left: 0;
+                transform: translateY(-50%);
+                z-index: 99999;
+                background: #1D4ED8;
+                color: #F0F6FF;
+                border: none;
+                border-radius: 0 8px 8px 0;
+                width: 28px;
+                height: 56px;
+                cursor: pointer;
+                font-size: 1rem;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 2px 0 12px rgba(0,0,0,0.45);
+                transition: background 0.2s, width 0.15s;
+                padding: 0;
+            }
+            #sidebar-open-btn:hover { background: #2563EB; width: 34px; }
+        `;
+        doc.head.appendChild(style);
+
+        var btn = doc.createElement('button');
+        btn.id = 'sidebar-open-btn';
+        btn.title = 'Open sidebar';
+        btn.innerHTML = '&#9654;';
+        doc.body.appendChild(btn);
+
+        function checkSidebar() {
+            var sidebar = doc.querySelector('section[data-testid="stSidebar"]');
+            if (!sidebar) { btn.style.display = 'none'; return; }
+            // Streamlit marks collapsed sidebar with aria-expanded=false or near-zero width
+            var w = sidebar.getBoundingClientRect().width;
+            var ariaExpanded = sidebar.getAttribute('aria-expanded');
+            var collapsed = (ariaExpanded === 'false') || (w < 20);
+            btn.style.display = collapsed ? 'flex' : 'none';
+        }
+
+        btn.addEventListener('click', function() {
+            var toggleBtn =
+                doc.querySelector('[data-testid="collapsedControl"] button') ||
+                doc.querySelector('[data-testid="collapsedControl"]') ||
+                doc.querySelector('button[aria-label="Open sidebar"]') ||
+                doc.querySelector('button[aria-label="open sidebar"]') ||
+                (function() {
+                    var all = doc.querySelectorAll('button');
+                    for (var i = 0; i < all.length; i++) {
+                        var r = all[i].getBoundingClientRect();
+                        if (r.left < 80 && r.top < 80 && r.width < 60) return all[i];
+                    }
+                    return null;
+                })();
+            if (toggleBtn) { toggleBtn.click(); }
+            setTimeout(checkSidebar, 400);
+        });
+
+        // Watch sidebar for collapse/expand
+        var sidebar = doc.querySelector('section[data-testid="stSidebar"]');
+        if (sidebar) {
+            new MutationObserver(checkSidebar).observe(sidebar,
+                { attributes: true, attributeFilter: ['class', 'style', 'aria-expanded'] });
+        }
+        // Watch for Streamlit re-renders adding/removing sidebar
+        new MutationObserver(function() {
+            var sb = doc.querySelector('section[data-testid="stSidebar"]');
+            if (sb) {
+                new MutationObserver(checkSidebar).observe(sb,
+                    { attributes: true, attributeFilter: ['class', 'style', 'aria-expanded'] });
+            }
+            checkSidebar();
+        }).observe(doc.body, { childList: true, subtree: false });
+
+        checkSidebar();
+        setTimeout(checkSidebar, 600);
+        setTimeout(checkSidebar, 1500);
+    }
+})();
+</script>
+""", height=0)
 
 # ─── Background Fine-Tune Session State ───────────────────────────────────────
 if "ft_thread"       not in st.session_state: st.session_state.ft_thread       = None
